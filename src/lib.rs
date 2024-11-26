@@ -9,6 +9,7 @@ use duckdb::{
 };
 use duckdb_loadable_macros::duckdb_entrypoint_c_api;
 use libduckdb_sys as ffi;
+use pyo3::prelude::*;
 use std::{
     error::Error,
     ffi::{c_char, CString},
@@ -70,8 +71,15 @@ impl VTab for HelloVTab {
                 (*init_info).done = true;
                 let vector = output.flat_vector(0);
                 let name = CString::from_raw((*bind_info).name);
-                let result = CString::new(format!("Rusty Quack {} 🐥", name.to_str()?))?;
-                // Can't consume the CString
+
+                // 获取 Python 版本信息
+                let py_version = Python::with_gil(|py| {
+                    let sys = py.import("sys")?;
+                    let version: String = sys.getattr("version")?.extract()?;
+                    Ok::<String, PyErr>(version)
+                }).unwrap_or_else(|e| format!("Error getting Python version: {}", e));
+
+                let result = CString::new(format!("Hello {}! Python Version: {}", name.to_str()?, py_version))?;
                 (*bind_info).name = CString::into_raw(name);
                 vector.insert(0, result);
                 output.set_len(1);
